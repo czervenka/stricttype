@@ -11,6 +11,8 @@ class StrictValue(object):
         self._type = field_type
         self._message = message
         self._name = name
+        self._value = None
+        self._validated = False
         if value is not None:
             self.import_value(value)
 
@@ -20,8 +22,12 @@ class StrictValue(object):
         except ValidationError, e:
             message = '%s: %s' % (self, e.message)
             raise ValidationError(self, message)
+        else:
+            self._validated = True
 
     def export_value(self):
+        if not self._validated:
+            raise ValueError('%s: %s' % (self, "Exporting non-initialized value."))
         return self._type.export_value(self._value)
 
     def as_dict(self):
