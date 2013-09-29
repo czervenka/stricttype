@@ -1,3 +1,4 @@
+# coding=utf-8
 from unittest import TestCase
 import stricttype
 from stricttype import base_types, message
@@ -25,16 +26,22 @@ class TestMyApplication(TestCase):
 
         self.assertTrue(isinstance(msg, message.MessageInstance), 'Message instance is instance of MessageInstance')
         self.assertTrue(isinstance(msg._properties['i'], base_types.StrictValue), 'Test is of valid property.')
-        # should be fine
+        'as_dict returns proper values'
         self.assertEqual(msg.as_dict(), {'i': 1, 's': '12-34-56', 'm': None, 'r': None})
-        # exception for tuple is not int
+        'setting tuple to IntegerType raises ValidationError'
         self.assertRaises(stricttype.ValidationError, MyMessage, i=tuple())
-        # exception for min_value is 1
+        'setting value lower than `min_value` raises ValidationError'
         self.assertRaises(stricttype.ValidationError, MyMessage, i=0)
-        # exception for max_value is 10
+        'setting value higher than `max_value` raises ValidationError'
         self.assertRaises(stricttype.ValidationError, MyMessage, i=11)
-        # exception for string does not conform to regex
+        'setting string that does not match regular expression raises ValidationError'
         self.assertRaises(stricttype.ValidationError, MyMessage, s='123456')
+
+    def test_bare_class(self):
+        'bare StrictType is not usable'
+        class MyMessage(stricttype.Message):
+            t = stricttype.StrictType()
+        self.assertRaises(NotImplementedError, MyMessage, t=1)
 
     def test_messagefield(self):
         '''MessageType'''
@@ -44,16 +51,15 @@ class TestMyApplication(TestCase):
 
         class WrongMessageType(stricttype.Message):
             pass
-        # this should be ok
-        print 'c: ' + msg.m.__class__.__name__
+        'message field retrieved as property is the same as the value in constructor'
         self.assertEquals(msg.m, msg_f)
-        # raises exception for the value is class (not an instance)
+        'MessageType accepts only instances not class itself'
         self.assertRaises(stricttype.ValidationError, MyMessage, m=MyMessageType)
-        # raises exception for WrongMessageType is not the message class set
-        # in definition
+        'setting different class raises ValidationError'
         self.assertRaises(stricttype.ValidationError, MyMessage, m=WrongMessageType())
 
     def test_dict(self):
+        '''Exported dict matches imported one'''
 
         data = {
             'i' : 1,
@@ -71,12 +77,13 @@ class TestMyApplication(TestCase):
 
         msg = MyMessage(r=[1, 2])
 
+        'repeated type returns the same list as got in construcotr'
         self.assertEquals(msg.r, [1, 2])
-        # raises exception for repeat_max is 2
+        'raises exception for repeat_max is 2'
         self.assertRaises(stricttype.ValidationError, MyMessage, r=[1, 2, 3])
-        # raises exception for repeat_min is 1
+        'raises exception for repeat_min is 1'
         self.assertRaises(stricttype.ValidationError, MyMessage, r=[])
-        # does not raise exception (required is not set)
+        'does not raise exception (required is not set)'
         self.assertIsNone(MyMessage(r=None).r)
 
     def test_invalid_property(self):
@@ -84,15 +91,18 @@ class TestMyApplication(TestCase):
 
         class MyMessage(stricttype.Message):
             as_dict = stricttype.StringType(required=False)
+        'as_dict is invalid name for message field'
         self.assertRaises(ValueError, MyMessage)
 
         class MyMessage(stricttype.Message):
             _invalid_property = stricttype.StringType(required=False)
+        'property starting with underscore is not valid property name'
         self.assertRaises(ValueError, MyMessage)
 
     def test_required(self):
         '''Message - required'''
 
+        'creating message without values for required fields raises exception'
         self.assertRaises(stricttype.ValidationError, MyMessageType)
 
     def test_can_inherit(self):
@@ -103,6 +113,7 @@ class TestMyApplication(TestCase):
         class Mb(Ma):
             name = stricttype.StringType()
 
+        'Message classes can be extended by inheritance'
         self.assertEqual(Mb(id=1, name='test Mb').as_dict(), {'id': 1, 'name': 'test Mb'})
 
     def test_string_type(self):
@@ -111,11 +122,71 @@ class TestMyApplication(TestCase):
             s = stricttype.StringType()
 
         msg = StrMessage(s='abc')
+        'StringType returns string if filled by string'
         self.assertEqual(msg.s, 'abc')
 
-        msg = StrMessage(s=u'abc')
-        self.assertEqual(msg.s, u'abc')
+        s=u'říšžľťóčýůňúďáé'
+        msg = StrMessage(s=s)
+        'StringType returns unicode if filled by unicode (and works with utf-8 chars)'
+        self.assertEqual(msg.s, s)
 
         msg = StrMessage(s=1)
+        'StringType converts non-string types to unicode if possible'
         self.assertEqual(msg.s, u'1')
 
+    def test_attribute_error(self):
+        'message returns values as properties'
+
+        m = MyMessage()
+        'getting nonexisting property raises attribute error'
+        self.assertRaises(AttributeError, getattr, m, 'not_a_property')
+
+        'setting nonexisting property raises attribute error'
+        self.assertRaises(AttributeError, setattr, m, 'not_a_property', 'abc')
+
+        'setting property needs proper value'
+        self.assertRaises(stricttype.ValidationError, setattr, m, 'i', 's')
+
+        'hasattr'
+        self.assertTrue(m.__hasattr__('i'))
+        self.assertFalse(hasattr(m, 'not_a_property'))
+        self.assertTrue(hasattr(m, 'as_dict'))
+
+        'setattr'
+        m.i = 1
+        self.assertEquals(m.i, 1)
+        del m.i
+        self.assertEquals(m.i, None)
+
+        m = MyMessageType(val='abc')
+
+        self.assertRaises(stricttype.ValidationError, delattr, m, 'val')
+
+
+
+class TestInternals(TestCase):
+
+    def test_strict_value_can_be_empty(self):
+        message = stricttype.Message()
+        v = stricttype.StrictValue(message, 'test', stricttype.StringType())
+        self.assertRaises(ValueError, v.export_value)
+
+    def test_message_encoder(self):
+        class MyObj(object):
+            def as_dict(self):
+                return {'x': 1}
+
+        'dumps exports dict from objects implementing `as_dict` method'
+        self.assertEquals(str(stricttype.dumps(MyObj())), '{"x": 1}')
+
+        'dumps result can be converted to unicode'
+        self.assertEquals(unicode(stricttype.dumps(MyObj())), u'{"x": 1}')
+
+        'dumps raises TypeError for object which could not handle'
+        self.assertRaises(TypeError, str, stricttype.dumps(object()))
+
+        m = MyMessageType(val='abc')
+        self.assertEquals(m.as_dict(), m._dict_value)
+        m.val = 'cba'
+        'as_dict cache is reset after changing a value'
+        self.assertIsNone(getattr(m, '_dict_value', None))
