@@ -13,7 +13,7 @@ It's usage is close to Google's endpoint Message.
 Example
 -------
 
-.. code: python
+.. code:: python
 
    from stricttype import Message, StringType, IntegerType, MessageType
 
