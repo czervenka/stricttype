@@ -9,7 +9,7 @@ class MessageEncoder(json.JSONEncoder):
         if hasattr(o, 'as_dict'):
             return o.as_dict()
         else:
-            raise TypeError("Json could not encode object of type %r." % type(o).__name__)
+            super(MessageEncoder, self).default(o)
 
 class dumps(object):
 
@@ -37,10 +37,7 @@ class MessageInstance(object):
 
     def _import_data(self, data):
         for prop_name, field in self._properties.items():
-            if prop_name in data:
-                field.import_value(data[prop_name])
-            else:
-                field.import_value()
+            setattr(self, prop_name, data.get(prop_name, None))
 
     def __getattr__(self, key):
         if key in self._properties:
@@ -51,6 +48,7 @@ class MessageInstance(object):
     def __setattr__(self, key, value):
         if key in self.__dict__['_properties']:
             self.__dict__['_properties'][key].import_value(value)
+            self._on_change()
         else:
             raise AttributeError("%s has no attributte %s." % (self.__class__, key))
 
@@ -58,8 +56,12 @@ class MessageInstance(object):
         return key in self.__dict__ or key in self.__dict__['_properties']
 
     def __delattr__(self, key):
-        if key in self.__dict__['_properties']:
+        if key in self.__dict__:
+            del self.__dict__[key]
+        elif key in self.__dict__['_properties']:
             setattr(self, key, None)
+        else:
+            raise AttributeError("%s has no attributte %s." % (self.__class__, key))
 
     def _on_change(self):
         if hasattr(self, '_dict_value'):
@@ -92,9 +94,6 @@ class MessageInstance(object):
 
     def __str__(self):
         return self._type.__name__
-
-    def to_JSON(self):
-        return json.dumps(self.as_dict())
 
 
 class Message(object):
