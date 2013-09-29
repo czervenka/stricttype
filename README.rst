@@ -1,4 +1,3 @@
-
 What is it?
 ===========
 StrictType is validation library useful when building an interface. It was
@@ -6,8 +5,6 @@ originally written for restapi (json rest request handler) to allow validating
 json messages.
 
 It's usage is close to Google's endpoint Message.
-
-... and also, this is my first library with 100% test coverage :)
 
 
 Example
@@ -57,7 +54,7 @@ Example
 What is still missing?
 ----------------------
 
-- export of the definition (xml, json)
+- export of schema (xml, json)
 - xml representation
 - BooleanType
 - other basic types (ie. EmailType, DatetimeType, DateType)
